@@ -86,7 +86,6 @@ export class Scheduler {
 
     // Case 2: Look into previous month (History)
     // prevMonthTail array is variable length.
-    // e.g. tail length = 14. targetIndex = -1 (Last day). Index = 14 + (-1) = 13.
     const prevIndex = this.prevMonthTail.length + targetIndex; 
     
     if (prevIndex >= 0 && prevIndex < this.prevMonthTail.length) {
@@ -102,22 +101,34 @@ export class Scheduler {
   }
 
   /**
-   * Check if employee worked Shift B or C in the "previous week" range.
-   * Logic: Checks T-5 to T-9 days range to cover the previous weekend/holiday block.
+   * General helper to check if employee worked Shift B or C in a given past day window.
    */
-  private hasWorkedShiftBCLastWeek(employeeId: string, dayIndex: number, scheduleSoFar: DaySchedule[]): boolean {
-    // Check range [T-9, T-5]
-    for (let i = 5; i <= 9; i++) {
-        const past = this.getPastDayAssignments(dayIndex, i, scheduleSoFar);
+  private hasWorkedShiftBCInWindow(employeeId: string, dayIndex: number, startOffset: number, endOffset: number, schedule: DaySchedule[]): boolean {
+    for (let i = startOffset; i <= endOffset; i++) {
+        const past = this.getPastDayAssignments(dayIndex, i, schedule);
         if (past) {
-            const hasAssignment = past.assignments.some(a => 
+            const has = past.assignments.some(a => 
                 a.employeeId === employeeId && 
                 (a.shiftType === ShiftType.B || a.shiftType === ShiftType.C)
             );
-            if (hasAssignment) return true;
+            if (has) return true;
         }
     }
     return false;
+  }
+
+  /**
+   * Check if employee worked Shift B or C in the "Last Week" (T-5 to T-9).
+   */
+  private hasWorkedShiftBCLastWeek(employeeId: string, dayIndex: number, scheduleSoFar: DaySchedule[]): boolean {
+    return this.hasWorkedShiftBCInWindow(employeeId, dayIndex, 5, 9, scheduleSoFar);
+  }
+
+  /**
+   * Check if employee worked Shift B or C in "Two Weeks Ago" (T-12 to T-16).
+   */
+  private hasWorkedShiftBCTwoWeeksAgo(employeeId: string, dayIndex: number, scheduleSoFar: DaySchedule[]): boolean {
+    return this.hasWorkedShiftBCInWindow(employeeId, dayIndex, 12, 16, scheduleSoFar);
   }
 
   /**
@@ -163,6 +174,19 @@ export class Scheduler {
     // 3. Already assigned today?
     if (scheduleSoFar[dayIndex].assignments.some(a => a.employeeId === employee.id)) {
       return { eligible: false, reason: "Already working today" };
+    }
+
+    // --- CONSECUTIVE WEEK CHECKS (Shift B/C) ---
+    // Rule: Avoid 2 consecutive weeks (Soft), but STRICTLY ban 3 consecutive weeks.
+    if (targetShift === ShiftType.B || targetShift === ShiftType.C) {
+        const workedLastWeek = this.hasWorkedShiftBCLastWeek(employee.id, dayIndex, scheduleSoFar);
+        const workedTwoWeeksAgo = this.hasWorkedShiftBCTwoWeeksAgo(employee.id, dayIndex, scheduleSoFar);
+
+        // If worked both last week AND 2 weeks ago, they have a 2-week streak.
+        // Assigning them today would make it a 3-week streak. Forbidden.
+        if (workedLastWeek && workedTwoWeeksAgo) {
+            return { eligible: false, reason: "Max Consecutive Weeks Reached (Prev 2 Weeks Worked)" };
+        }
     }
 
     // --- CROSS-MONTH & CURRENT MONTH BACKWARD CHECKS ---
@@ -363,7 +387,9 @@ export class Scheduler {
         // 3. Normal Sort + Soft Consecutive Constraint
         candidates.sort((a, b) => {
             // Priority 0: Soft Consecutive Constraint (for Shift B/C)
-            // If checking for B or C, punish those who worked B or C last week.
+            // Penalize if worked Last Week (attempt to avoid 2-streak).
+            // NOTE: We don't check 2-weeks-ago here because 2-weeks-ago + Last Week 
+            // is handled as a HARD constraint in isEligible, so those candidates are already filtered out.
             if (type === ShiftType.B || type === ShiftType.C) {
                 const aWorkedLastWeek = this.hasWorkedShiftBCLastWeek(a.id, dayIdx, schedule);
                 const bWorkedLastWeek = this.hasWorkedShiftBCLastWeek(b.id, dayIdx, schedule);

@@ -145,9 +145,9 @@ export default function App() {
     }
     
     const prevHistory = history.find(h => h.year === prevY && h.month === prevM);
-    // Get last 14 days (2 weeks) if available to support 2-week continuous check
+    // Get last 21 days (3 weeks) if available to support 3-week strict blocking
     const prevMonthTail = prevHistory 
-        ? prevHistory.scheduleResult.schedule.slice(-14) 
+        ? prevHistory.scheduleResult.schedule.slice(-21) 
         : [];
 
     // Tiny timeout to let UI show loading state
@@ -227,7 +227,7 @@ export default function App() {
               <Calendar size={20} />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-gray-900">AutoSchedule AI <span className="text-blue-600">v7.8</span></h1>
+              <h1 className="text-xl font-bold tracking-tight text-gray-900">AutoSchedule AI <span className="text-blue-600">v7.9</span></h1>
               <p className="text-xs text-gray-500 hidden sm:block">Fairness-Optimized Medical Roster (History Aware)</p>
             </div>
           </div>
@@ -312,7 +312,7 @@ export default function App() {
                )}
                <div className="text-[10px] text-gray-400 mt-2 flex flex-wrap items-center gap-3">
                  <span>* <strong>Sat-Anchor Logic:</strong> Rest Group applies to Saturday and its <strong>attached Sunday</strong>.</span>
-                 <span>* <strong>2-Week Rule:</strong> Avoids consecutive weekly assignments for Shift B/C.</span>
+                 <span>* <strong>2-Week Rule:</strong> Soft ban on 2 consecutive weeks. <strong>Hard ban on 3 consecutive.</strong></span>
                  {historyConnection && (
                     <span className="flex items-center gap-1 text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded border border-green-200">
                         <Link2 size={12} /> {historyConnection}
@@ -415,11 +415,11 @@ export default function App() {
                        
                        {/* Quick Info about v7 Logic */}
                        <div className="mt-6 pt-6 border-t border-gray-100">
-                          <h4 className="text-xs font-bold text-gray-400 uppercase mb-2">Algorithm V7.8</h4>
+                          <h4 className="text-xs font-bold text-gray-400 uppercase mb-2">Algorithm V7.9</h4>
                           <ul className="text-xs text-gray-500 space-y-1">
-                            <li>• <span className="text-blue-500 font-bold">New:</span> 2-Week Consecutive Check (Soft).</li>
-                            <li>• Avoids Shift B/C if worked previous week.</li>
-                            <li>• History aware (Cross-month check up to 14 days).</li>
+                            <li>• <span className="text-blue-500 font-bold">Updated:</span> 2-Week Consecutive Check (Soft).</li>
+                            <li>• <span className="text-red-500 font-bold">New:</span> 3-Week Consecutive Check (Hard).</li>
+                            <li>• Stops streaks from extending into new month.</li>
                           </ul>
                        </div>
                     </div>
